@@ -61,7 +61,7 @@ class Robot:
         # collision check
         collision_points, collision_index = collision_check(self.old_position, self.robot_position, self.map_size,
                                                             self.global_map)
-        # ss = time.time()
+
         if collision_index:
             self.robot_position = nearest_free(self.free_tree, collision_points)
             self.op_map = inverse_sensor(self.robot_position, self.sensor_range, self.op_map, self.global_map)
@@ -69,8 +69,7 @@ class Robot:
         else:
             self.op_map = inverse_sensor(self.robot_position, self.sensor_range, self.op_map, self.global_map)
             step_map = robot_model(self.robot_position, self.robot_size, self.t, self.op_map)
-        # ee = time.time()
-        # print ee-ss
+
         map_local = local_map(self.robot_position, step_map, self.map_size, self.sensor_range + self.local_size)
         reward = get_reward(self.old_op_map, self.op_map, collision_index)
 
@@ -80,7 +79,7 @@ class Robot:
             terminal = True
         elif reward == -1:
             terminal = True
-            # new_location = True
+
         if collision_index:
             self.robot_position = self.old_position.copy()
             self.op_map = self.old_op_map.copy()
@@ -93,9 +92,9 @@ class Robot:
             complete = True
             new_location = False
             terminal = True
-        xx = [self.old_position[0], self.robot_position[0]]
-        yy = [self.old_position[1], self.robot_position[1]]
-        plt.imshow(step_map, cmap='gray')
+        # xx = [self.old_position[0], self.robot_position[0]]
+        # yy = [self.old_position[1], self.robot_position[1]]
+        # plt.imshow(step_map, cmap='gray')
         # np.savetxt("average_reward/step.csv", step_map,
         #            delimiter=",")
         # plt.axis((0, 640, 480, 0))

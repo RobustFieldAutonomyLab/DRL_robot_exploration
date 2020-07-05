@@ -96,7 +96,7 @@ def create_LSTM(num_action, num_cell):
     return s, readout, keep_per, trainLength, batch_size, state_in, rnn_state
 
 
-class experience_buffer(buffer_size=1000):
+class experience_buffer():
     def __init__(self, buffer_size):
         self.buffer = []
         self.buffer_size = buffer_size
