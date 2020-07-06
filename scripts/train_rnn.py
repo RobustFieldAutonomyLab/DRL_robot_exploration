@@ -11,23 +11,24 @@ import robot_simulation as robot
 TRAIN = True
 ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 10000.  # timesteps to observe before training
-EXPLORE = 2000000.  # frames over which to anneal epsilon
-REPLAY_MEMORY = 1000  # number of previous transitions to remember
+OBSERVE = 1e4  # timesteps to observe before training
+EXPLORE = 2e6  # frames over which to anneal epsilon
+REPLAY_MEMORY = 1e3  # number of previous transitions to remember
 BATCH = 4  # size of minibatch
 h_size = 512  # size of hidden cells of LSTM
 trace_length = 8  # memory length
+FINAL_RATE = 0  # final value of dropout rate
+INITIAL_RATE = 0.9  # initial value of dropout rate
 
-# exploration and exploitation trad-off parameters
-# e-greedy
-FINAL_EPSILON = 0  # final value of epsilon
-INITIAL_EPSILON = 0.9
 reward_dir = "../results/"+"rnn_"+str(ACTIONS)
-netword_dir = "../saved_networks/"+"rnn_"+str(ACTIONS)
+network_dir = "../saved_networks/" + "rnn_" + str(ACTIONS)
+log_dir = "../log/" + "rnn_" + str(ACTIONS)
 if not os.path.exists(reward_dir):
     os.makedirs(reward_dir)
-if not os.path.exists(netword_dir):
-    os.makedirs(netword_dir)
+if not os.path.exists(network_dir):
+    os.makedirs(network_dir)
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
 file_location_ave = reward_dir + "/average_reward_rnn_"+str(ACTIONS)+".csv"
 
 rnn_cell = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
@@ -45,13 +46,13 @@ def padd_eps(eps_buff):
     return eps_buff
 
 
-def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
+def trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess):
     # define the cost function
-    a = tf.placeholder("float", [None, ACTIONS])
-    y = tf.placeholder("float", [None])
-    readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
-    cost = tf.reduce_mean(tf.square(y - readout_action))
-    train_step = tf.train.AdamOptimizer(1e-5).minimize(cost)
+    a = tf.compat.v1.placeholder("float", [None, ACTIONS])
+    y = tf.compat.v1.placeholder("float", [None])
+    readout_action = tf.compat.v1.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
+    cost = tf.compat.v1.reduce_mean(tf.compat.v1.square(y - readout_action))
+    train_step = tf.compat.v1.train.AdamOptimizer(1e-5).minimize(cost)
 
     # open a test
     robot_explo = robot.Robot(0, TRAIN)
@@ -61,10 +62,9 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
 
     # setup training
     step_t = 0
-    epsilon = INITIAL_EPSILON
+    drop_rate = INITIAL_RATE
     total_reward = np.empty([0, 0])
     average_reward = np.empty([0, 0])
-    reward_std = np.empty([0, 0])
     state = (np.zeros([1, h_size]), np.zeros([1, h_size]))  # Reset the recurrent layer's hidden state
 
     # saving and loading networks
@@ -86,13 +86,12 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
 
     while 1:
         # e-greedy scale down epsilon
-        if epsilon > FINAL_EPSILON and step_t > OBSERVE:
-            epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
+        if drop_rate > FINAL_RATE and step_t > OBSERVE:
+            drop_rate -= (INITIAL_RATE - FINAL_RATE) / EXPLORE
 
-        # choose an action epsilon greedily
-        # readout_t = readout.eval(feed_dict={s: s_t, keep_per: 1 - epsilon, tl: 1, bs: 1, si: state})[0]
+        # choose an action by uncertainty
         readout_t, state1 = sess.run([readout, rnn_state],
-                                     feed_dict={s: s_t, keep_per: 1 - epsilon, tl: 1, bs: 1, si: state})
+                                     feed_dict={s: s_t, drop: drop_rate, tl: 1, bs: 1, si: state})
         readout_t = readout_t[0]
         readout_t[a_t_coll] = None
         a_t = np.zeros([ACTIONS])
@@ -125,7 +124,7 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
             s_j1_batch = np.vstack(trainBatch[:, 3])
 
             readout_j1_batch = readout.eval(
-                feed_dict={s: s_j1_batch, keep_per: 0.2, tl: trace_length, bs: BATCH, si: state_train})[0]
+                feed_dict={s: s_j1_batch, drop: 0, tl: trace_length, bs: BATCH, si: state_train})[0]
             end_multiplier = -(np.vstack(trainBatch[:, 4]).flatten() - 1)
             y_batch = r_batch + GAMMA * np.max(readout_j1_batch) * end_multiplier
 
@@ -134,7 +133,7 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
                 y: y_batch,
                 a: a_batch,
                 s: s_j_batch,
-                keep_per: 0.2,
+                drop: 0.8,
                 tl: trace_length,
                 bs: BATCH,
                 si: state_train}
@@ -143,24 +142,19 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
         step_t += 1
         total_reward = np.append(total_reward, r_t)
 
-        # save progress every 500000 iterations
+        # save progress
         if step_t % 500000 == 0:
-            saver.save(sess, 'saved_networks/rnn/rnn', global_step=step_t)
+            # save neural networks
+            saver.save(sess, network_dir, global_step=step_t)
+            # save average reward data
+            np.savetxt(file_location_ave, average_reward, delimiter=",")
 
-        if step_t > 10000:
+        if step_t > 1e4:
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
             average_reward = np.append(average_reward, new_average_reward)
-            # plotting
-            # if step_t % 1000 == 0:
-            #     xaxis = step_t - 10000
-            #     yaxis = new_average_reward
-            # ss.write(dict(x=xaxis, y=yaxis))
 
-        print("TIMESTEP", step_t, "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t,
+        print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")
-
-        if step_t % 10000 == 0:
-            np.savetxt(file_location_ave, average_reward, delimiter=",")
 
         if step_t >= EXPLORE:
             break
@@ -193,8 +187,8 @@ def start_training():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.InteractiveSession(config=config)
-    s, readout, keep_per, tl, bs, si, rnn_state = create_LSTM(ACTIONS, h_size)
-    trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess)
+    s, readout, drop, tl, bs, si, rnn_state = create_LSTM(ACTIONS, h_size)
+    trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess)
 
 
 if __name__ == "__main__":

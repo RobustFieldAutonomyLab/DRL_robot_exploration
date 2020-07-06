@@ -1,13 +1,13 @@
 from scipy import spatial
-
+# from skimage import io
 import cv2
 import numpy as np
 import time
 import sys
 from scipy import ndimage
 import matplotlib.pyplot as plt
-sys.path.append(sys.path[0] + '/../build')
-from inverse_sensor_model import *
+sys.path.append(sys.path[0] + '/..')
+from build.inverse_sensor_model import *
 from random import shuffle
 import os
 
@@ -137,7 +137,9 @@ def take_action(action_index, all_dir, robot_position, step_length):
 
 
 def map_setup(location):
-    global_map = cv2.imread(location, 0)
+    # global_map = (io.imread(location, 1)*255).astype(int)
+    global_map = cv2.imread(location, 0).astype(int)
+    # robot_location = np.nonzero(global_map == 208)
     robot_location = np.nonzero(global_map == 203)
     robot_location = np.array([np.array(robot_location)[1, 127], np.array(robot_location)[0, 127]])
     global_map = (global_map > 150)
@@ -299,29 +301,6 @@ def collision_check(start_point, end_point, map_size, map_glo):
 def inverse_sensor(robot_position, sensor_range, op_map, map_glo):
     op_map = inverse_sensor_model(robot_position[0], robot_position[1], sensor_range, op_map, map_glo)
     return op_map
-
-
-# def cast_i(angle, robot_position, sensor_range, op_map, map_glo, map_shape):
-#     ray_end = (robot_position + sensor_range * np.array([np.cos(angle), np.sin(angle)]))
-#     for points in castray(robot_position, ray_end, map_shape, map_glo):
-#         op_map[points] = map_glo[points]
-#     return op_map
-
-
-# def frontier(op_map, map_size):
-#     for y in range(map_size[0]):
-#         for x in range(map_size[1]):
-#             k = op_map.item(y, x)
-#             if not k == 255:
-#                 continue
-#             try:
-#                 s = [op_map.item(y+i, x+j) == 127
-#                      for i in range(-1, 2) for j in range(-1, 2)]
-#             except IndexError:
-#                 continue
-#             if 1 < sum(s) < 8:
-#                 f = np.array([x, y])
-#                 return f
 
 
 def frontier(op_map, map_size, points):
