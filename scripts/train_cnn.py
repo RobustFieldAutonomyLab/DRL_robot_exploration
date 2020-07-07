@@ -1,6 +1,5 @@
 import os
-# from skimage.transform import resize
-import cv2
+from skimage.transform import resize
 import random
 import numpy as np
 from collections import deque
@@ -45,7 +44,7 @@ def train(data, action, y, model, optimizer):
     y = torch.tensor(y).to(device, dtype=torch.float)
     model.train()
     optimizer.zero_grad()
-    out = model(data, 0.5)
+    out = model(data, 0.8)
     loss = cost(out, y, action)
     loss.backward()
     for param in model.parameters():
@@ -92,8 +91,7 @@ def start_training():
 
     # get the first state by doing nothing and preprocess the image to 80x80x4
     x_t = robot_explo.begin()
-    # x_t = resize(x_t, (84, 84))
-    x_t = cv2.resize(x_t, (84, 84))
+    x_t = resize(x_t, (84, 84))
     s_t = np.reshape(x_t, (1, 84, 84))
     a_t_coll = []
 
@@ -111,11 +109,11 @@ def start_training():
 
         # run the selected action and observe next state and reward
         x_t1, r_t, terminal, complete, re_locate, collision_index = robot_explo.step(action_index)
-        # x_t1 = resize(x_t1, (84, 84))
-        x_t1 = cv2.resize(x_t1, (84, 84))
+        x_t1 = resize(x_t1, (84, 84))
         x_t1 = np.reshape(x_t1, (1, 84, 84))
         s_t1 = x_t1
         finish = terminal
+
         # store the transition in D
         D.append((s_t, a_t, r_t, s_t1, terminal))
         if len(D) > REPLAY_MEMORY:
@@ -136,7 +134,7 @@ def start_training():
             s_j1_batch = [d[3] for d in minibatch]
 
             y_batch = []
-            readout_j1_batch = test(s_j1_batch, 0.0, target_net)
+            readout_j1_batch = test(s_j1_batch, 0., target_net)
             readout_j1_batch = readout_j1_batch.cpu().detach().numpy()
             for i in range(0, len(minibatch)):
                 terminal = minibatch[i][4]
@@ -168,8 +166,7 @@ def start_training():
                 x_t = robot_explo.rescuer()
             if complete:
                 x_t = robot_explo.begin()
-            # x_t = resize(x_t, (84, 84))
-            x_t = cv2.resize(x_t, (84, 84))
+            x_t = resize(x_t, (84, 84))
             s_t = np.reshape(x_t, (1, 84, 84))
             a_t_coll = []
             continue

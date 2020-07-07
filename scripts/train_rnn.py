@@ -1,17 +1,17 @@
-from __future__ import print_function
 import os
-import tensorflow as tf
-import cv2
+from skimage.transform import resize
 import numpy as np
-from Networks import experience_buffer
+import random
 from Networks import create_LSTM
+import torch
+from torch.utils.tensorboard import SummaryWriter
 import robot_simulation as robot
 
 # training environment parameters
 TRAIN = True
 ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 1e4  # timesteps to observe before training
+OBSERVE = 1e2  # timesteps to observe before training
 EXPLORE = 2e6  # frames over which to anneal epsilon
 REPLAY_MEMORY = 1e3  # number of previous transitions to remember
 BATCH = 4  # size of minibatch
@@ -19,91 +19,136 @@ h_size = 512  # size of hidden cells of LSTM
 trace_length = 8  # memory length
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
+TARGET_UPDATE = 15000
+max_grad_norm = 0.5
 
-reward_dir = "../results/"+"rnn_"+str(ACTIONS)
+# torch device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 network_dir = "../saved_networks/" + "rnn_" + str(ACTIONS)
 log_dir = "../log/" + "rnn_" + str(ACTIONS)
-if not os.path.exists(reward_dir):
-    os.makedirs(reward_dir)
 if not os.path.exists(network_dir):
     os.makedirs(network_dir)
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-file_location_ave = reward_dir + "/average_reward_rnn_"+str(ACTIONS)+".csv"
 
-rnn_cell = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
+
+class experience_buffer():
+    def __init__(self, buffer_size):
+        self.buffer = []
+        self.buffer_size = buffer_size
+
+    def add(self, experience):
+        if len(self.buffer) + 1 >= self.buffer_size:
+            self.buffer[0:(1 + len(self.buffer)) - self.buffer_size] = []
+        self.buffer.append(experience)
+
+    def sample(self, batch_size, trace_length):
+        sampled_episodes = random.sample(self.buffer, batch_size)
+        element_size = np.size(sampled_episodes[0][0])
+        sampledTraces = []
+        for episode in sampled_episodes:
+            point = np.random.randint(0, len(episode) + 1 - trace_length)
+            sampledTraces.append(episode[point:point + trace_length])
+        sampledTraces = np.array(sampledTraces)
+        return np.reshape(sampledTraces, [batch_size * trace_length, element_size])
 
 
 def padd_eps(eps_buff):
     if len(eps_buff) < trace_length:
-        s = np.zeros([1, 84, 84, 1])
+        s = np.zeros([1, 1, 84, 84])
         a = np.zeros([ACTIONS])
         r = 0
-        s1 = np.zeros([1, 84, 84, 1])
+        s1 = np.zeros([1, 1, 84, 84])
         d = True
         for i in range(0, trace_length - len(eps_buff)):
             eps_buff.append(np.reshape(np.array([s, a, r, s1, d]), [1, 5]))
     return eps_buff
 
 
-def trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess):
-    # define the cost function
-    a = tf.compat.v1.placeholder("float", [None, ACTIONS])
-    y = tf.compat.v1.placeholder("float", [None])
-    readout_action = tf.compat.v1.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
-    cost = tf.compat.v1.reduce_mean(tf.compat.v1.square(y - readout_action))
-    train_step = tf.compat.v1.train.AdamOptimizer(1e-5).minimize(cost)
+def cost(pred, target, action):
+    readout_action = torch.sum(pred*action, dim=1)
+    loss = torch.sqrt(torch.mean((readout_action-target)**2))
+    return loss
 
-    # open a test
+
+def train(data, action, y, state, model, optimizer):
+    data = torch.tensor(data).to(device, dtype=torch.float)
+    action = torch.tensor(action).to(device, dtype=torch.float)
+    y = torch.tensor(y).to(device, dtype=torch.float)
+    model.train()
+    optimizer.zero_grad()
+    out, _ = model(data, 0.8, state, trace_length, BATCH, h_size)
+    loss = cost(out, y, action)
+    loss.backward()
+    for param in model.parameters():
+        param.grad.data.clamp_(-max_grad_norm, max_grad_norm)
+    optimizer.step()
+    return loss.item()
+
+
+def test(data, prob, state_in, model, trace_length, BATCH, h_size):
+    data = torch.tensor(data).to(device, dtype=torch.float)
+    model.eval()
+    pred, state_out = model(data, prob, state_in, trace_length, BATCH, h_size)
+    return pred, state_out
+
+
+def start_training():
+    # initialize networks
+    policy_net = create_LSTM(ACTIONS).to(device)
+    target_net = create_LSTM(ACTIONS).to(device)
+    target_net.load_state_dict(policy_net.state_dict())
+    target_net.eval()
+    optimizer = torch.optim.Adam(policy_net.parameters(), lr=1e-5)
+    init_state = (torch.zeros(1, 1, h_size).to(device), torch.zeros(1, 1, h_size).to(device))
+
+    # initialize an training environment
     robot_explo = robot.Robot(0, TRAIN)
+    step_t = 0
+    drop_rate = INITIAL_RATE
+    total_reward = np.empty([0, 0])
 
     # store the previous observations in replay memory
     myBuffer = experience_buffer(REPLAY_MEMORY)
 
-    # setup training
-    step_t = 0
-    drop_rate = INITIAL_RATE
-    total_reward = np.empty([0, 0])
-    average_reward = np.empty([0, 0])
-    state = (np.zeros([1, h_size]), np.zeros([1, h_size]))  # Reset the recurrent layer's hidden state
+    # tensorboard
+    writer = SummaryWriter(log_dir=log_dir)
 
-    # saving and loading networks
-    saver = tf.train.Saver()
-    sess.run(tf.initialize_all_variables())
-    checkpoint = tf.train.get_checkpoint_state("saved_networks")
-    if checkpoint and checkpoint.model_checkpoint_path:
-        saver.restore(sess, checkpoint.model_checkpoint_path)
-        print("Successfully loaded:", checkpoint.model_checkpoint_path)
+    # load model
+    policy_model_name = network_dir + '/Model_Policy.pt'
+    if os.path.exists(policy_model_name):
+        check_point_p = torch.load(policy_model_name)
+        policy_net.load_state_dict(check_point_p)
+        print("Successfully loaded")
     else:
         print("Could not find old network weights")
 
-    # get the first state by doing nothing and preprocess the image to 84x84x1
+    # get the first state by doing nothing and preprocess the image to 80x80x4
     x_t = robot_explo.begin()
-    x_t = cv2.resize(x_t, (84, 84))
-    s_t = np.reshape(x_t, (1, 84, 84, 1))
+    x_t = resize(x_t, (84, 84))
+    s_t = np.reshape(x_t, (1, 1, 84, 84))
+    state = init_state
     a_t_coll = []
     episodeBuffer = []
 
-    while 1:
-        # e-greedy scale down epsilon
+    while step_t <= EXPLORE:
+        # scale down dropout rate
         if drop_rate > FINAL_RATE and step_t > OBSERVE:
             drop_rate -= (INITIAL_RATE - FINAL_RATE) / EXPLORE
 
         # choose an action by uncertainty
-        readout_t, state1 = sess.run([readout, rnn_state],
-                                     feed_dict={s: s_t, drop: drop_rate, tl: 1, bs: 1, si: state})
-        readout_t = readout_t[0]
+        readout_t, state1 = test(s_t, drop_rate, state, policy_net, 1, 1, h_size)
+        readout_t = readout_t.cpu().detach().numpy()
         readout_t[a_t_coll] = None
         a_t = np.zeros([ACTIONS])
-
-        # print("Policy Action")
         action_index = np.nanargmax(readout_t)
         a_t[action_index] = 1
 
         # run the selected action and observe next state and reward
         x_t1, r_t, terminal, complete, re_locate, collision_index = robot_explo.step(action_index)
-        x_t1 = cv2.resize(x_t1, (84, 84))
-        x_t1 = np.reshape(x_t1, (1, 84, 84, 1))
+        x_t1 = resize(x_t1, (84, 84))
+        x_t1 = np.reshape(x_t1, (1, 1, 84, 84))
         s_t1 = x_t1
         finish = terminal
 
@@ -111,8 +156,12 @@ def trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess):
         episodeBuffer.append(np.reshape(np.array([s_t, a_t, r_t, s_t1, terminal]), [1, 5]))
 
         if step_t > OBSERVE:
+            # updata target network
+            if step_t % TARGET_UPDATE == 0:
+                target_net.load_state_dict(policy_net.state_dict())
+
             # Reset the recurrent layer's hidden state
-            state_train = (np.zeros([BATCH, h_size]), np.zeros([BATCH, h_size]))
+            state_train = (torch.zeros(1, BATCH, h_size).to(device), torch.zeros(1, BATCH, h_size).to(device))
 
             # sample a minibatch to train on
             trainBatch = myBuffer.sample(BATCH, trace_length)
@@ -123,21 +172,16 @@ def trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess):
             r_batch = np.vstack(trainBatch[:, 2]).flatten()
             s_j1_batch = np.vstack(trainBatch[:, 3])
 
-            readout_j1_batch = readout.eval(
-                feed_dict={s: s_j1_batch, drop: 0, tl: trace_length, bs: BATCH, si: state_train})[0]
+            readout_j1_batch, _ = test(s_j1_batch, 0., state_train, target_net, trace_length, BATCH, h_size)
+            readout_j1_batch = readout_j1_batch.cpu().detach().numpy()
             end_multiplier = -(np.vstack(trainBatch[:, 4]).flatten() - 1)
             y_batch = r_batch + GAMMA * np.max(readout_j1_batch) * end_multiplier
 
             # perform gradient step
-            train_step.run(feed_dict={
-                y: y_batch,
-                a: a_batch,
-                s: s_j_batch,
-                drop: 0.8,
-                tl: trace_length,
-                bs: BATCH,
-                si: state_train}
-            )
+            temp_loss = train(s_j_batch, a_batch, y_batch, state_train, policy_net, optimizer)
+            new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
+            writer.add_scalar('Train/avg_reward', new_average_reward, step_t)
+            writer.add_scalar('Train/loss', temp_loss, step_t)
 
         step_t += 1
         total_reward = np.append(total_reward, r_t)
@@ -145,32 +189,22 @@ def trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess):
         # save progress
         if step_t % 500000 == 0:
             # save neural networks
-            saver.save(sess, network_dir, global_step=step_t)
-            # save average reward data
-            np.savetxt(file_location_ave, average_reward, delimiter=",")
-
-        if step_t > 1e4:
-            new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
-            average_reward = np.append(average_reward, new_average_reward)
+            torch.save(policy_net.state_dict(), network_dir + '/MyModel.pt')
 
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")
-
-        if step_t >= EXPLORE:
-            break
 
         if finish:
             bufferArray = np.array(padd_eps(episodeBuffer))
             episodeBuffer = list(zip(bufferArray))
             myBuffer.add(episodeBuffer)
             episodeBuffer = []
-
             if re_locate:
                 x_t = robot_explo.rescuer()
             if complete:
                 x_t = robot_explo.begin()
-            x_t = cv2.resize(x_t, (84, 84))
-            s_t = np.reshape(x_t, (84, 84, 1))
+            x_t = resize(x_t, (84, 84))
+            s_t = np.reshape(x_t, (1, 1, 84, 84))
             a_t_coll = []
             continue
 
@@ -179,16 +213,7 @@ def trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess):
             a_t_coll.append(action_index)
             continue
         a_t_coll = []
-        state = state1
         s_t = s_t1
-
-
-def start_training():
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.InteractiveSession(config=config)
-    s, readout, drop, tl, bs, si, rnn_state = create_LSTM(ACTIONS, h_size)
-    trainNetwork(s, readout, drop, tl, bs, si, rnn_state, sess)
 
 
 if __name__ == "__main__":

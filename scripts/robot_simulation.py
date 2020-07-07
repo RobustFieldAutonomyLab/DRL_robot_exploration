@@ -1,6 +1,5 @@
 from scipy import spatial
-# from skimage import io
-import cv2
+from skimage import io
 import numpy as np
 import time
 import sys
@@ -137,10 +136,8 @@ def take_action(action_index, all_dir, robot_position, step_length):
 
 
 def map_setup(location):
-    # global_map = (io.imread(location, 1)*255).astype(int)
-    global_map = cv2.imread(location, 0).astype(int)
-    # robot_location = np.nonzero(global_map == 208)
-    robot_location = np.nonzero(global_map == 203)
+    global_map = (io.imread(location, 1)*255).astype(int)
+    robot_location = np.nonzero(global_map == 208)
     robot_location = np.array([np.array(robot_location)[1, 127], np.array(robot_location)[0, 127]])
     global_map = (global_map > 150)
     global_map = global_map * 254 + 1
