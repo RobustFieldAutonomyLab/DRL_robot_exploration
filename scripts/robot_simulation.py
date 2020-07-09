@@ -92,9 +92,10 @@ class Robot:
         if collision_index:
             self.robot_position = self.old_position.copy()
             self.op_map = self.old_op_map.copy()
-            self.xPoint.pop()
-            self.yPoint.pop()
-            self.gui()
+            if self.plot:
+                self.xPoint.pop()
+                self.yPoint.pop()
+                self.gui()
 
         if np.size(np.where(self.global_map == 255)) - np.size(np.where(self.op_map == 255)) < 500:
             self.li_map += 1
