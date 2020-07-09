@@ -11,7 +11,8 @@ import robot_simulation as robot
 
 # training environment parameters
 TRAIN = True
-PLOT = True
+PLOT = False
+
 ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 1e4  # timesteps to observe before training

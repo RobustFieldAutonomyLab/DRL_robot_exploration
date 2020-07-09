@@ -1,6 +1,7 @@
 import os
 from skimage.transform import resize
 import numpy as np
+import matplotlib.pyplot as plt
 import random
 from Networks import create_LSTM
 import torch
@@ -9,7 +10,8 @@ import robot_simulation as robot
 
 # training environment parameters
 TRAIN = True
-PLOT = True
+PLOT = False
+
 ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 1e4  # timesteps to observe before training
@@ -109,7 +111,7 @@ def start_training():
     init_state = (torch.zeros(1, 1, h_size).to(device), torch.zeros(1, 1, h_size).to(device))
 
     # initialize an training environment
-    robot_explo = robot.Robot(0, TRAIN)
+    robot_explo = robot.Robot(0, TRAIN, PLOT)
     step_t = 0
     drop_rate = INITIAL_RATE
     total_reward = np.empty([0, 0])
@@ -212,7 +214,9 @@ def start_training():
             if complete:
                 x_t = robot_explo.begin()
             if re_locate:
-                x_t = robot_explo.rescuer()
+                x_t, re_locate_complete = robot_explo.rescuer()
+                if re_locate_complete:
+                    x_t = robot_explo.begin()
             x_t = resize(x_t, (84, 84))
             s_t = np.reshape(x_t, (1, 1, 84, 84))
             a_t_coll = []
