@@ -56,6 +56,7 @@ class Robot:
         terminal = False
         complete = False
         new_location = False
+        all_map = False
         self.old_position = self.robot_position.copy()
         self.old_op_map = self.op_map.copy()
 
@@ -77,36 +78,44 @@ class Robot:
         map_local = self.local_map(self.robot_position, step_map, self.map_size, self.sensor_range + self.local_size)
         reward = self.get_reward(self.old_op_map, self.op_map, collision_index)
 
-        if reward == -1:
-            terminal = True
-        elif reward <= 0.02:
+        if reward <= 0.015 and not collision_index:
             reward = -0.8
             new_location = True
             terminal = True
 
-        if self.plot:
-            self.xPoint.append(self.robot_position[0])
-            self.yPoint.append(self.robot_position[1])
-            self.gui()
-
         if collision_index:
+            if not self.mode:
+                new_location = False
+                terminal = False
+            else:
+                new_location = True
+                terminal = True
+            if self.plot and self.mode:
+                self.xPoint.append(self.robot_position[0])
+                self.yPoint.append(self.robot_position[1])
+                self.gui()
             self.robot_position = self.old_position.copy()
             self.op_map = self.old_op_map.copy()
-            if self.plot:
+            if self.plot and self.mode:
                 self.xPoint.pop()
                 self.yPoint.pop()
+        else:
+            if self.plot:
+                self.xPoint.append(self.robot_position[0])
+                self.yPoint.append(self.robot_position[1])
                 self.gui()
 
         if np.size(np.where(self.global_map == 255)) - np.size(np.where(self.op_map == 255)) < 500:
             self.li_map += 1
             if self.li_map == self.map_number:
                 self.li_map = 0
+                all_map = True
             self.__init__(self.li_map, self.mode, self.plot)
             complete = True
             new_location = False
             terminal = True
 
-        return map_local, reward, terminal, complete, new_location, collision_index
+        return map_local, reward, terminal, complete, new_location, collision_index, all_map
 
     def rescuer(self):
         complete = False
@@ -128,11 +137,12 @@ class Robot:
             self.li_map += 1
             if self.li_map == self.map_number:
                 self.li_map = 0
+                all_map = True
             self.__init__(self.li_map, self.mode, self.plot)
             complete = True
             new_location = False
             terminal = True
-        return map_local, complete
+        return map_local, complete, all_map
 
     def take_action(self, action_index, robot_position):
         move_action = self.action_space[action_index, :]
