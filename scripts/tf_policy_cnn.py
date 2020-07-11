@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
 from tf_networks import create_CNN
+from tensorboardX import SummaryWriter
 import robot_simulation as robot
 
 # training environment parameters
@@ -15,7 +16,7 @@ PLOT = False
 
 ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
-OBSERVE = 1e2  # timesteps to observe before training
+OBSERVE = 1e4  # timesteps to observe before training
 EXPLORE = 2e6  # frames over which to anneal epsilon
 REPLAY_MEMORY = 10000  # number of previous transitions to remember
 BATCH = 64  # size of minibatch
@@ -53,6 +54,9 @@ def run_with_network(s, readout, keep_per, sess):
 
     # store the previous observations in replay memory
     D = deque()
+
+    # tensorboard
+    writer = SummaryWriter(log_dir=log_dir)
 
     # saving and loading networks
     saver = tf.compat.v1.train.Saver()
@@ -116,14 +120,15 @@ def run_with_network(s, readout, keep_per, sess):
                 keep_per: 0.2}
             )
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
+            writer.add_scalar('average reward', new_average_reward, step_t)
             average_reward = np.append(average_reward, new_average_reward)
 
         step_t += 1
         total_reward = np.append(total_reward, r_t)
 
         # save progress
-        if step_t % 500000 == 0:
-            saver.save(sess, network_dir+'/cnn', global_step=step_t)
+        if step_t % 2e4 == 0 or step_t % 2e5 == 0 or step_t % 2e6 == 0:
+            saver.save(sess, network_dir + '/cnn', global_step=step_t)
             np.savetxt(file_location_ave, average_reward, delimiter=",")
 
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,

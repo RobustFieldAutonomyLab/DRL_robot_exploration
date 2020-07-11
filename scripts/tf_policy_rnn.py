@@ -4,6 +4,7 @@ from skimage.transform import resize
 import random
 import numpy as np
 from tf_networks import create_LSTM
+from tensorboardX import SummaryWriter
 import robot_simulation as robot
 
 # training environment parameters
@@ -76,6 +77,9 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
 
     # open a test
     robot_explo = robot.Robot(0, TRAIN, PLOT)
+
+    # tensorboard
+    writer = SummaryWriter(log_dir=log_dir)
 
     # initialize an training environment
     myBuffer = experience_buffer(REPLAY_MEMORY)
@@ -158,13 +162,14 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
                 si: state_train}
             )
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
+            writer.add_scalar('average reward', new_average_reward, step_t)
             average_reward = np.append(average_reward, new_average_reward)
 
         step_t += 1
         total_reward = np.append(total_reward, r_t)
 
         # save progress
-        if step_t % 500000 == 0:
+        if step_t % 2e4 == 0 or step_t % 2e5 == 0 or step_t % 2e6 == 0:
             saver.save(sess, network_dir+'/rnn', global_step=step_t)
             np.savetxt(file_location_ave, average_reward, delimiter=",")
 
