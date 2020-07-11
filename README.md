@@ -3,3 +3,40 @@ This repository contains code for robot exploration training with Deep Reinforce
 <p align='center'>
     <img src="/doc/policy.gif" alt="drawing" width="1000"/>
 </p>
+
+## Dependency
+
+- [TensorFlow](https://www.tensorflow.org/install) (code is writen under TF1.X but is modified to compatible with TF2)
+- [pybind11](https://github.com/pybind/pybind11) (pybind11 — Seamless operability between C++11 and Python)
+  ```
+  wget -O ~/Downloads/pybind11.zip https://github.com/pybind/pybind11/archive/master.zip
+  cd ~/Downloads/ && unzip pybind11.zip -d ~/Downloads/
+  cd ~/Downloads/pybind11-master/
+  mkdir build && cd build
+  cmake ..
+  sudo make install
+  ```
+## Compile
+
+You can use the following commands to download and compile the package.
+
+```
+git clone https://github.com/RobustFieldAutonomyLab/DRL_robot_exploration.git
+cd DRL_robot_exploration
+mkdir build && cd build
+cmake ..
+make
+```
+
+## Cite
+
+Please cite [our paper](https://www.researchgate.net/profile/Fanfei_Chen/publication/330200308_Self-Learning_Exploration_and_Mapping_for_Mobile_Robots_via_Deep_Reinforcement_Learning/links/5d6e7ad4a6fdccf93d381d2e/Self-Learning-Exploration-and-Mapping-for-Mobile-Robots-via-Deep-Reinforcement-Learning.pdf) if you use any of this code: 
+```
+@inproceedings{ExplorDRL2019,
+  title={Self-Learning Exploration and Mapping for Mobile Robots via Deep Reinforcement Learning},
+  author={Chen, Fanfei and Bai, Shi and Shan, Tixiao and Englot, Brendan},
+  booktitle={AIAA SciTech Forum},
+  pages={0396},
+  year={2019},
+}
+```
