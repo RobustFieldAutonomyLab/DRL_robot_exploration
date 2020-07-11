@@ -22,6 +22,7 @@ REPLAY_MEMORY = 10000  # number of previous transitions to remember
 BATCH = 64  # size of minibatch
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
+TARGET_UPDATE = 5e4
 
 network_dir = "../saved_networks/" + "cnn_" + str(ACTIONS)
 log_dir = "../log/" + "cnn_" + str(ACTIONS)
@@ -31,7 +32,20 @@ if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
 
-def run_with_network(s, readout, keep_per, sess):
+def copy_weights(sess):
+    trainable = tf.compat.v1.trainable_variables()
+    for i in range(len(trainable)//2):
+        assign_op = trainable[i+len(trainable)//2].assign(trainable[i])
+        sess.run(assign_op)
+
+
+def start():
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.compat.v1.InteractiveSession(config=config)
+    s, readout, keep_per = create_CNN(ACTIONS)
+    s_target, readout_target, keep_per_target = create_CNN(ACTIONS)
+
     # define the cost function
     a = tf.compat.v1.placeholder("float", [None, ACTIONS])
     y = tf.compat.v1.placeholder("float", [None])
@@ -51,11 +65,13 @@ def run_with_network(s, readout, keep_per, sess):
     D = deque()
 
     # tensorboard
-    writer = SummaryWriter(log_dir=log_dir)
+    if TRAIN:
+        writer = SummaryWriter(log_dir=log_dir)
 
     # saving and loading networks
     saver = tf.compat.v1.train.Saver()
     sess.run(tf.compat.v1.global_variables_initializer())
+    copy_weights(sess)
     checkpoint = tf.train.get_checkpoint_state(network_dir)
     if checkpoint and checkpoint.model_checkpoint_path:
         saver.restore(sess, checkpoint.model_checkpoint_path)
@@ -75,7 +91,7 @@ def run_with_network(s, readout, keep_per, sess):
             drop_rate -= (INITIAL_RATE - FINAL_RATE) / EXPLORE
 
         # choose an action by uncertainty
-        readout_t = readout.eval(feed_dict={s: s_t, keep_per: 1 - drop_rate})[0]
+        readout_t = readout.eval(feed_dict={s: s_t, keep_per: 1-drop_rate})[0]
         readout_t[a_t_coll] = None
         a_t = np.zeros([ACTIONS])
         action_index = np.nanargmax(readout_t)
@@ -94,6 +110,10 @@ def run_with_network(s, readout, keep_per, sess):
             D.popleft()
 
         if step_t > OBSERVE:
+            # update target network
+            if step_t % TARGET_UPDATE == 0:
+                copy_weights(sess)
+
             # sample a minibatch to train on
             minibatch = np.array(random.sample(D, BATCH))
 
@@ -103,7 +123,7 @@ def run_with_network(s, readout, keep_per, sess):
             r_batch = np.vstack(minibatch[:, 2]).flatten()
             s_j1_batch = np.vstack(minibatch[:, 3])
 
-            readout_j1_batch = readout.eval(feed_dict={s: s_j1_batch, keep_per: 0.2})
+            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_per_target: 0.2})
             end_multiplier = -(np.vstack(minibatch[:, 4]).flatten() - 1)
             y_batch = r_batch + GAMMA * np.max(readout_j1_batch) * end_multiplier
 
@@ -183,14 +203,6 @@ def run_with_network(s, readout, keep_per, sess):
             continue
         a_t_coll = []
         s_t = s_t1
-
-
-def start():
-    config = tf.compat.v1.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.compat.v1.InteractiveSession(config=config)
-    s, readout, keep_per = create_CNN(ACTIONS)
-    run_with_network(s, readout, keep_per, sess)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,9 @@ h_size = 512  # size of hidden cells of LSTM
 trace_length = 8  # memory length
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
+TARGET_UPDATE = 5e4
 
-network_dir = "../saved_networks/"+"rnn_"+str(ACTIONS)
+network_dir = "../saved_networks/" + "rnn_" + str(ACTIONS)
 log_dir = "../log/" + "rnn_" + str(ACTIONS)
 if not os.path.exists(network_dir):
     os.makedirs(network_dir)
@@ -63,7 +64,21 @@ def padd_eps(eps_buff):
     return eps_buff
 
 
-def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
+def copy_weights(sess):
+    trainable = tf.compat.v1.trainable_variables()
+    for i in range(len(trainable) // 2):
+        assign_op = trainable[i + len(trainable) // 2].assign(trainable[i])
+        sess.run(assign_op)
+
+
+def start():
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.compat.v1.InteractiveSession(config=config)
+    s, readout, keep_per, tl, bs, si, rnn_state = create_LSTM(ACTIONS, h_size, 'policy')
+    s_target, readout_target, keep_per_target, \
+    tl_target, bs_target, si_target, rnn_state_target = create_LSTM(ACTIONS, h_size, 'target')
+
     # define the cost function
     a = tf.compat.v1.placeholder("float", [None, ACTIONS])
     y = tf.compat.v1.placeholder("float", [None])
@@ -76,7 +91,8 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
     robot_explo = robot.Robot(0, TRAIN, PLOT)
 
     # tensorboard
-    writer = SummaryWriter(log_dir=log_dir)
+    if TRAIN:
+        writer = SummaryWriter(log_dir=log_dir)
 
     # initialize an training environment
     myBuffer = experience_buffer(REPLAY_MEMORY)
@@ -89,6 +105,7 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
     # saving and loading networks
     saver = tf.compat.v1.train.Saver()
     sess.run(tf.compat.v1.global_variables_initializer())
+    copy_weights(sess)
     checkpoint = tf.compat.v1.train.get_checkpoint_state(network_dir)
     if checkpoint and checkpoint.model_checkpoint_path:
         saver.restore(sess, checkpoint.model_checkpoint_path)
@@ -129,6 +146,10 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
         episodeBuffer.append(np.reshape(np.array([s_t, a_t, r_t, s_t1, terminal]), [1, 5]))
 
         if step_t > OBSERVE:
+            # update target network
+            if step_t % TARGET_UPDATE == 0:
+                copy_weights(sess)
+
             # Reset the recurrent layer's hidden state
             state_train = (np.zeros([BATCH, h_size]),
                            np.zeros([BATCH, h_size]))
@@ -142,8 +163,9 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
             r_batch = np.vstack(trainBatch[:, 2]).flatten()
             s_j1_batch = np.vstack(trainBatch[:, 3])
 
-            readout_j1_batch = readout.eval(
-                feed_dict={s: s_j1_batch, keep_per: 0.2, tl: trace_length, bs: BATCH, si: state_train})[0]
+            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_per_target: 0.2,
+                                                              tl_target: trace_length, bs_target: BATCH,
+                                                              si_target: state_train})[0]
             end_multiplier = -(np.vstack(trainBatch[:, 4]).flatten() - 1)
             y_batch = r_batch + GAMMA * np.max(readout_j1_batch) * end_multiplier
 
@@ -165,7 +187,7 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
 
         # save progress
         if step_t % 2e4 == 0 or step_t % 2e5 == 0 or step_t % 2e6 == 0:
-            saver.save(sess, network_dir+'/rnn', global_step=step_t)
+            saver.save(sess, network_dir + '/rnn', global_step=step_t)
 
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")
@@ -234,14 +256,6 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
             continue
         a_t_coll = []
         s_t = s_t1
-
-
-def start():
-    config = tf.compat.v1.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.compat.v1.InteractiveSession(config=config)
-    s, readout, keep_per, tl, bs, si, rnn_state = create_LSTM(ACTIONS, h_size)
-    trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess)
 
 
 if __name__ == "__main__":

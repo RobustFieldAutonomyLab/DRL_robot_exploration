@@ -48,7 +48,7 @@ def create_CNN(num_action):
     return s, readout, keep_per
 
 
-def create_LSTM(num_action, num_cell):
+def create_LSTM(num_action, num_cell, scope):
     # network weights
     W_conv1 = weight_variable([8, 8, 1, 32])
     b_conv1 = bias_variable([32])
@@ -81,7 +81,7 @@ def create_LSTM(num_action, num_cell):
         h_conv4), [batch_size, trainLength, num_cell])
     state_in = rnn_cell.zero_state(batch_size, tf.float32)
     rnn, rnn_state = tf.compat.v1.nn.dynamic_rnn(
-        inputs=convFlat, cell=rnn_cell, dtype=tf.float32, initial_state=state_in)
+        inputs=convFlat, cell=rnn_cell, dtype=tf.float32, initial_state=state_in, scope=scope)
     rnn = tf.reshape(rnn, shape=[-1, num_cell])
 
     keep_per = tf.compat.v1.placeholder(shape=None, dtype=tf.float32)
