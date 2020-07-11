@@ -236,7 +236,7 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
         s_t = s_t1
 
 
-def start_training():
+def start():
     config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.compat.v1.InteractiveSession(config=config)
@@ -245,6 +245,6 @@ def start_training():
 
 
 if __name__ == "__main__":
-    start_training()
+    start()
     if PLOT:
         plt.show()
