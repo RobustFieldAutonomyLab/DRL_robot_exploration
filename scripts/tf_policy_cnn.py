@@ -23,16 +23,12 @@ BATCH = 64  # size of minibatch
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
 
-reward_dir = "../results/" + "cnn_" + str(ACTIONS)
 network_dir = "../saved_networks/" + "cnn_" + str(ACTIONS)
 log_dir = "../log/" + "cnn_" + str(ACTIONS)
-if not os.path.exists(reward_dir):
-    os.makedirs(reward_dir)
 if not os.path.exists(network_dir):
     os.makedirs(network_dir)
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-file_location_ave = reward_dir + "/average_reward.csv"
 
 
 def run_with_network(s, readout, keep_per, sess):
@@ -49,7 +45,6 @@ def run_with_network(s, readout, keep_per, sess):
     step_t = 0
     drop_rate = INITIAL_RATE
     total_reward = np.empty([0, 0])
-    average_reward = np.empty([0, 0])
     finish_all_map = False
 
     # store the previous observations in replay memory
@@ -121,7 +116,6 @@ def run_with_network(s, readout, keep_per, sess):
             )
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
             writer.add_scalar('average reward', new_average_reward, step_t)
-            average_reward = np.append(average_reward, new_average_reward)
 
         step_t += 1
         total_reward = np.append(total_reward, r_t)
@@ -129,7 +123,6 @@ def run_with_network(s, readout, keep_per, sess):
         # save progress
         if step_t % 2e4 == 0 or step_t % 2e5 == 0 or step_t % 2e6 == 0:
             saver.save(sess, network_dir + '/cnn', global_step=step_t)
-            np.savetxt(file_location_ave, average_reward, delimiter=",")
 
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")

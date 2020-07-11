@@ -22,16 +22,12 @@ trace_length = 8  # memory length
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
 
-reward_dir = "../results/"+"rnn_"+str(ACTIONS)
 network_dir = "../saved_networks/"+"rnn_"+str(ACTIONS)
 log_dir = "../log/" + "rnn_" + str(ACTIONS)
-if not os.path.exists(reward_dir):
-    os.makedirs(reward_dir)
 if not os.path.exists(network_dir):
     os.makedirs(network_dir)
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-file_location_ave = reward_dir + "/average_reward.csv"
 
 
 class experience_buffer():
@@ -86,7 +82,6 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
     step_t = 0
     drop_rate = INITIAL_RATE
     total_reward = np.empty([0, 0])
-    average_reward = np.empty([0, 0])
     init_state = (np.zeros([1, h_size]), np.zeros([1, h_size]))
     finish_all_map = False
 
@@ -163,7 +158,6 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
             )
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
             writer.add_scalar('average reward', new_average_reward, step_t)
-            average_reward = np.append(average_reward, new_average_reward)
 
         step_t += 1
         total_reward = np.append(total_reward, r_t)
@@ -171,7 +165,6 @@ def trainNetwork(s, readout, keep_per, tl, bs, si, rnn_state, sess):
         # save progress
         if step_t % 2e4 == 0 or step_t % 2e5 == 0 or step_t % 2e6 == 0:
             saver.save(sess, network_dir+'/rnn', global_step=step_t)
-            np.savetxt(file_location_ave, average_reward, delimiter=",")
 
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")
