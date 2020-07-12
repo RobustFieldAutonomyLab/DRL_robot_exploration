@@ -39,13 +39,13 @@ def create_CNN(num_action):
     h_conv3_flat = tf.compat.v1.layers.flatten(h_conv3)
 
     h_fc1 = tf.compat.v1.nn.relu(tf.matmul(h_conv3_flat, W_fc1) + b_fc1)
-    keep_per = tf.compat.v1.placeholder(shape=None, dtype=tf.float32)
-    hidden = tf.compat.v1.nn.dropout(h_fc1, keep_per)
+    keep_rate = tf.compat.v1.placeholder(shape=None, dtype=tf.float32)
+    hidden = tf.compat.v1.nn.dropout(h_fc1, keep_rate)
 
     # readout layer
     readout = tf.matmul(hidden, W_fc2) + b_fc2
 
-    return s, readout, keep_per
+    return s, readout, keep_rate
 
 
 def create_LSTM(num_action, num_cell, scope):
@@ -84,10 +84,10 @@ def create_LSTM(num_action, num_cell, scope):
         inputs=convFlat, cell=rnn_cell, dtype=tf.float32, initial_state=state_in, scope=scope)
     rnn = tf.reshape(rnn, shape=[-1, num_cell])
 
-    keep_per = tf.compat.v1.placeholder(shape=None, dtype=tf.float32)
-    hidden = tf.compat.v1.nn.dropout(rnn, keep_per)
+    keep_rate = tf.compat.v1.placeholder(shape=None, dtype=tf.float32)
+    hidden = tf.compat.v1.nn.dropout(rnn, keep_rate)
 
     # readout layer
     readout = tf.matmul(hidden, W_fc2) + b_fc2
 
-    return s, readout, keep_per, trainLength, batch_size, state_in, rnn_state
+    return s, readout, keep_rate, trainLength, batch_size, state_in, rnn_state

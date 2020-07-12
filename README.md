@@ -1,5 +1,5 @@
 # Robot Exploration with Deep Reinforcement Learning
-This repository contains code for robot exploration training with Deep Reinforcement Learning (DRL). The agent utilize the local structure of the environment to predict robot’s optimal sensing action. A demonstration can be found here -> www.youtube.com/watch?v=2gNF6efv12s
+This repository contains code for robot exploration training with Deep Reinforcement Learning (DRL). The agent utilize the local structure of the environment to predict robot’s optimal sensing action. A demonstration video can be found here -> www.youtube.com/watch?v=2gNF6efv12s
 
 <p align='center'>
     <img src="/doc/exploration.png" alt="drawing" width="1000"/>
@@ -12,7 +12,13 @@ This repository contains code for robot exploration training with Deep Reinforce
 ## Dependency
 - Python 3
 - [scikit-image](https://scikit-image.org/)
+  ```
+  pip3 install scikit-image
+  ```
 - [tensorboardX](https://github.com/lanpa/tensorboardX)
+  ```
+  pip3 install tensorboardX
+  ```
 - [TensorFlow](https://www.tensorflow.org/install) (code is writen under TF1.x but it is modified to be compatible with TF2)
 - [pybind11](https://github.com/pybind/pybind11) (pybind11 — Seamless operability between C++11 and Python)
   ```
@@ -51,8 +57,14 @@ make
     TRAIN = True
     PLOT = False
     ```
-  Set ``TRAIN=False`` to run saved policy. You can train your own policy by set ``TRAIN=True``. Set `` PLOT=True `` to turn on visualization plots.
-  
+  Set ``TRAIN=False`` to run saved policy. You can train your own policy by setting ``TRAIN=True``. Set `` PLOT=True `` to turn on visualization plots.
+ 
+- To show average reward during the training:
+    ```
+    cd DRL_robot_exploration
+    tensorboard --logdir=log
+    ```
+
 ## Cite
 
 Please cite [our paper](https://www.researchgate.net/profile/Fanfei_Chen/publication/330200308_Self-Learning_Exploration_and_Mapping_for_Mobile_Robots_via_Deep_Reinforcement_Learning/links/5d6e7ad4a6fdccf93d381d2e/Self-Learning-Exploration-and-Mapping-for-Mobile-Robots-via-Deep-Reinforcement-Learning.pdf) if you use any of this code: 
@@ -69,3 +81,4 @@ Please cite [our paper](https://www.researchgate.net/profile/Fanfei_Chen/publica
 ## Reference
 - [DeepRL-Agents](https://github.com/awjuliani/DeepRL-Agents)
 - [DeepLearningFlappyBird](https://github.com/yenchenlin/DeepLearningFlappyBird)
+- [Random Dungeon Generator](http://perplexingtech.weebly.com/random-dungeon-demo.html)

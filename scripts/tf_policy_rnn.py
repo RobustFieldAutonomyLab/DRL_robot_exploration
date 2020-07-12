@@ -76,8 +76,8 @@ def start():
     config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.compat.v1.InteractiveSession(config=config)
-    s, readout, keep_per, tl, bs, si, rnn_state = create_LSTM(ACTIONS, h_size, 'policy')
-    s_target, readout_target, keep_per_target, \
+    s, readout, keep_rate, tl, bs, si, rnn_state = create_LSTM(ACTIONS, h_size, 'policy')
+    s_target, readout_target, keep_rate_target, \
     tl_target, bs_target, si_target, rnn_state_target = create_LSTM(ACTIONS, h_size, 'target')
 
     # define the cost function
@@ -130,7 +130,7 @@ def start():
 
         # choose an action by uncertainty
         readout_t, state1 = sess.run([readout, rnn_state],
-                                     feed_dict={s: s_t, keep_per: 1 - drop_rate, tl: 1, bs: 1, si: state})
+                                     feed_dict={s: s_t, keep_rate: 1 - drop_rate, tl: 1, bs: 1, si: state})
         readout_t = readout_t[0]
         readout_t[a_t_coll] = None
         a_t = np.zeros([ACTIONS])
@@ -165,7 +165,7 @@ def start():
             r_batch = np.vstack(trainBatch[:, 2]).flatten()
             s_j1_batch = np.vstack(trainBatch[:, 3])
 
-            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_per_target: 0.2,
+            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_rate_target: 0.2,
                                                               tl_target: trace_length, bs_target: BATCH,
                                                               si_target: state_train})[0]
             end_multiplier = -(np.vstack(trainBatch[:, 4]).flatten() - 1)
@@ -176,7 +176,7 @@ def start():
                 y: y_batch,
                 a: a_batch,
                 s: s_j_batch,
-                keep_per: 0.2,
+                keep_rate: 0.2,
                 tl: trace_length,
                 bs: BATCH,
                 si: state_train}
@@ -222,7 +222,7 @@ def start():
     while not TRAIN and not finish_all_map:
         # choose an action by uncertainty
         readout_t, state1 = sess.run([readout, rnn_state],
-                                     feed_dict={s: s_t, keep_per: 1, tl: 1, bs: 1, si: state})
+                                     feed_dict={s: s_t, keep_rate: 1, tl: 1, bs: 1, si: state})
         readout_t = readout_t[0]
         readout_t[a_t_coll] = None
         a_t = np.zeros([ACTIONS])

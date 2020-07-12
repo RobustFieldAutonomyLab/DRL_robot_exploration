@@ -44,8 +44,8 @@ def start():
     config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.compat.v1.InteractiveSession(config=config)
-    s, readout, keep_per = create_CNN(ACTIONS)
-    s_target, readout_target, keep_per_target = create_CNN(ACTIONS)
+    s, readout, keep_rate = create_CNN(ACTIONS)
+    s_target, readout_target, keep_rate_target = create_CNN(ACTIONS)
 
     # define the cost function
     a = tf.compat.v1.placeholder("float", [None, ACTIONS])
@@ -93,7 +93,7 @@ def start():
             drop_rate -= (INITIAL_RATE - FINAL_RATE) / EXPLORE
 
         # choose an action by uncertainty
-        readout_t = readout.eval(feed_dict={s: s_t, keep_per: 1-drop_rate})[0]
+        readout_t = readout.eval(feed_dict={s: s_t, keep_rate: 1-drop_rate})[0]
         readout_t[a_t_coll] = None
         a_t = np.zeros([ACTIONS])
         action_index = np.nanargmax(readout_t)
@@ -125,7 +125,7 @@ def start():
             r_batch = np.vstack(minibatch[:, 2]).flatten()
             s_j1_batch = np.vstack(minibatch[:, 3])
 
-            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_per_target: 0.2})
+            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_rate_target: 0.2})
             end_multiplier = -(np.vstack(minibatch[:, 4]).flatten() - 1)
             y_batch = r_batch + GAMMA * np.max(readout_j1_batch) * end_multiplier
 
@@ -134,7 +134,7 @@ def start():
                 y: y_batch,
                 a: a_batch,
                 s: s_j_batch,
-                keep_per: 0.2}
+                keep_rate: 0.2}
             )
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
             writer.add_scalar('average reward', new_average_reward, step_t)
@@ -170,7 +170,7 @@ def start():
 
     while not TRAIN and not finish_all_map:
         # choose an action by policy
-        readout_t = readout.eval(feed_dict={s: s_t, keep_per: 1})[0]
+        readout_t = readout.eval(feed_dict={s: s_t, keep_rate: 1})[0]
         readout_t[a_t_coll] = None
         a_t = np.zeros([ACTIONS])
         action_index = np.nanargmax(readout_t)

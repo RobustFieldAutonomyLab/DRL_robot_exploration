@@ -23,7 +23,8 @@ class Robot:
             self.map_dir = '../DungeonMaps/test'
         self.map_list = os.listdir(self.map_dir)
         self.map_number = np.size(self.map_list)
-        shuffle(self.map_list)
+        if self.mode:
+            shuffle(self.map_list)
         self.li_map = index_map
         self.global_map, self.robot_position = self.map_setup(self.map_dir + '/' + self.map_list[self.li_map])
         self.op_map = np.ones(self.global_map.shape) * 127
