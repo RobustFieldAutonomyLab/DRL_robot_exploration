@@ -8,10 +8,11 @@ from tf_networks import create_LSTM
 from tensorboardX import SummaryWriter
 import robot_simulation as robot
 
-# training environment parameters
+# select mode
 TRAIN = True
 PLOT = False
 
+# training environment parameters
 ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 1e4  # timesteps to observe before training
@@ -106,12 +107,13 @@ def start():
     saver = tf.compat.v1.train.Saver()
     sess.run(tf.compat.v1.global_variables_initializer())
     copy_weights(sess)
-    checkpoint = tf.compat.v1.train.get_checkpoint_state(network_dir)
-    if checkpoint and checkpoint.model_checkpoint_path:
-        saver.restore(sess, checkpoint.model_checkpoint_path)
-        print("Successfully loaded:", checkpoint.model_checkpoint_path)
-    else:
-        print("Could not find old network weights")
+    if not TRAIN:
+        checkpoint = tf.compat.v1.train.get_checkpoint_state(network_dir)
+        if checkpoint and checkpoint.model_checkpoint_path:
+            saver.restore(sess, checkpoint.model_checkpoint_path)
+            print("Successfully loaded:", checkpoint.model_checkpoint_path)
+        else:
+            print("Could not find old network weights")
 
     # get the first state by doing nothing and preprocess the image to 84x84x1
     x_t = robot_explo.begin()
