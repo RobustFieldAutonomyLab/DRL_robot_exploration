@@ -17,13 +17,13 @@ ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 1e4  # timesteps to observe before training
 EXPLORE = 2e6  # frames over which to anneal epsilon
-REPLAY_MEMORY = 1e3  # number of previous transitions to remember
+REPLAY_MEMORY = 1000  # number of previous transitions to remember
 BATCH = 8  # size of minibatch
 h_size = 512  # size of hidden cells of LSTM
 trace_length = 8  # memory length
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
-TARGET_UPDATE = 2e4
+TARGET_UPDATE = 5e4
 
 network_dir = "../saved_networks/" + "rnn_" + str(ACTIONS)
 if not os.path.exists(network_dir):
@@ -89,20 +89,18 @@ def start():
     cost = tf.compat.v1.reduce_mean(tf.compat.v1.square(y - readout_action))
     train_step = tf.compat.v1.train.AdamOptimizer(1e-5).minimize(cost)
 
-    # open a test
-    robot_explo = robot.Robot(0, TRAIN, PLOT)
-
-    # tensorboard
-    if TRAIN:
-        writer = SummaryWriter(log_dir=log_dir)
-
     # initialize an training environment
+    robot_explo = robot.Robot(0, TRAIN, PLOT)
     myBuffer = experience_buffer(REPLAY_MEMORY)
     step_t = 0
     drop_rate = INITIAL_RATE
     total_reward = np.empty([0, 0])
     init_state = (np.zeros([1, h_size]), np.zeros([1, h_size]))
     finish_all_map = False
+
+    # tensorboard
+    if TRAIN:
+        writer = SummaryWriter(log_dir=log_dir)
 
     # saving and loading networks
     saver = tf.compat.v1.train.Saver()
@@ -145,7 +143,7 @@ def start():
         s_t1 = x_t1
         finish = terminal
 
-        # store the transition in D
+        # store the transition
         episodeBuffer.append(np.reshape(np.array([s_t, a_t, r_t, s_t1, terminal]), [1, 5]))
 
         if step_t > OBSERVE:
@@ -153,7 +151,7 @@ def start():
             if step_t % TARGET_UPDATE == 0:
                 copy_weights(sess)
 
-            # Reset the recurrent layer's hidden state
+            # reset the recurrent layer's hidden state
             state_train = (np.zeros([BATCH, h_size]),
                            np.zeros([BATCH, h_size]))
 
@@ -166,7 +164,7 @@ def start():
             r_batch = np.vstack(trainBatch[:, 2]).flatten()
             s_j1_batch = np.vstack(trainBatch[:, 3])
 
-            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_rate_target: 0.2,
+            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_rate_target: 1,
                                                               tl_target: trace_length, bs_target: BATCH,
                                                               si_target: state_train})[0]
             end_multiplier = -(np.vstack(trainBatch[:, 4]).flatten() - 1)
@@ -182,6 +180,8 @@ def start():
                 bs: BATCH,
                 si: state_train}
             )
+
+            # update tensorboard
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
             writer.add_scalar('average reward', new_average_reward, step_t)
 
@@ -195,6 +195,7 @@ def start():
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")
 
+        # reset the environment
         if finish:
             bufferArray = np.array(padd_eps(episodeBuffer))
             episodeBuffer = list(zip(bufferArray))
@@ -208,20 +209,11 @@ def start():
                     x_t = robot_explo.begin()
             x_t = resize(x_t, (84, 84))
             s_t = np.reshape(x_t, (1, 84, 84, 1))
-            a_t_coll = []
             state = init_state
             continue
 
-        # update the old values
-        if collision_index:
-            a_t_coll.append(action_index)
-            continue
-        a_t_coll = []
-        state = state1
-        s_t = s_t1
-
     while not TRAIN and not finish_all_map:
-        # choose an action by uncertainty
+        # choose an action by policy
         readout_t, state1 = sess.run([readout, rnn_state],
                                      feed_dict={s: s_t, keep_rate: 1, tl: 1, bs: 1, si: state})
         readout_t = readout_t[0]
@@ -253,7 +245,7 @@ def start():
             s_t = np.reshape(x_t, (1, 84, 84, 1))
             continue
 
-        # update the old values
+        # avoid collision next time
         if collision_index:
             a_t_coll.append(action_index)
             continue

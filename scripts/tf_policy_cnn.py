@@ -18,11 +18,11 @@ ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 1e4  # timesteps to observe before training
 EXPLORE = 2e6  # frames over which to anneal epsilon
-REPLAY_MEMORY = 1e4  # number of previous transitions to remember
+REPLAY_MEMORY = 10000  # number of previous transitions to remember
 BATCH = 64  # size of minibatch
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
-TARGET_UPDATE = 2e4
+TARGET_UPDATE = 5e4
 
 network_dir = "../saved_networks/" + "cnn_" + str(ACTIONS)
 if not os.path.exists(network_dir):
@@ -81,7 +81,7 @@ def start():
         else:
             print("Could not find old network weights")
 
-    # get the first state by doing nothing and preprocess the image to 80x80x4
+    # get the first state by doing nothing and preprocess the image to 80x80x1
     x_t = robot_explo.begin()
     x_t = resize(x_t, (84, 84))
     s_t = np.reshape(x_t, (1, 84, 84, 1))
@@ -106,7 +106,7 @@ def start():
         s_t1 = x_t1
         finish = terminal
 
-        # store the transition in D
+        # store the transition
         D.append((s_t, a_t, r_t, s_t1, terminal))
         if len(D) > REPLAY_MEMORY:
             D.popleft()
@@ -125,7 +125,7 @@ def start():
             r_batch = np.vstack(minibatch[:, 2]).flatten()
             s_j1_batch = np.vstack(minibatch[:, 3])
 
-            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_rate_target: 0.2})
+            readout_j1_batch = readout_target.eval(feed_dict={s_target: s_j1_batch, keep_rate_target: 1})
             end_multiplier = -(np.vstack(minibatch[:, 4]).flatten() - 1)
             y_batch = r_batch + GAMMA * np.max(readout_j1_batch) * end_multiplier
 
@@ -136,6 +136,8 @@ def start():
                 s: s_j_batch,
                 keep_rate: 0.2}
             )
+
+            # update tensorboard
             new_average_reward = np.average(total_reward[len(total_reward) - 10000:])
             writer.add_scalar('average reward', new_average_reward, step_t)
 
@@ -149,6 +151,7 @@ def start():
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
               "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")
 
+        # reset the environment
         if finish:
             if complete:
                 x_t = robot_explo.begin()
@@ -158,15 +161,7 @@ def start():
                     x_t = robot_explo.begin()
             x_t = resize(x_t, (84, 84))
             s_t = np.reshape(x_t, (1, 84, 84, 1))
-            a_t_coll = []
             continue
-
-        # avoid collision next time
-        if collision_index:
-            a_t_coll.append(action_index)
-            continue
-        a_t_coll = []
-        s_t = s_t1
 
     while not TRAIN and not finish_all_map:
         # choose an action by policy
@@ -199,7 +194,7 @@ def start():
             s_t = np.reshape(x_t, (1, 84, 84, 1))
             continue
 
-        # update the old values
+        # avoid collision next time
         if collision_index:
             a_t_coll.append(action_index)
             continue

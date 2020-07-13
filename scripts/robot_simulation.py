@@ -86,6 +86,8 @@ class Robot:
             new_location = True
             terminal = True
 
+        # during training, the robot is relocated if it has a collision
+        # during testing, the robot will use collision check to avoid the collision
         if collision_index:
             if not self.mode:
                 new_location = False
@@ -108,6 +110,7 @@ class Robot:
                 self.yPoint = ma.append(self.yPoint, self.robot_position[1])
                 self.plot_env()
 
+        # check if exploration is finished
         if np.size(np.where(self.op_map == 255))/np.size(np.where(self.global_map == 255)) > self.finish_percent:
             self.li_map += 1
             if self.li_map == self.map_number:
