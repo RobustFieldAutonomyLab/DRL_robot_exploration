@@ -82,3 +82,4 @@ Please cite [our paper](https://www.researchgate.net/profile/Fanfei_Chen/publica
 - [DeepRL-Agents](https://github.com/awjuliani/DeepRL-Agents)
 - [DeepLearningFlappyBird](https://github.com/yenchenlin/DeepLearningFlappyBird)
 - [Random Dungeon Generator](http://perplexingtech.weebly.com/random-dungeon-demo.html)
+- [PyAstar](https://github.com/hjweide/pyastar)

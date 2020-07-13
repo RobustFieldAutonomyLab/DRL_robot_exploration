@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 sys.path.append(sys.path[0] + '/..')
 from build.inverse_sensor_model import *
+from build.astar import *
 from random import shuffle
 import os
 
@@ -29,6 +30,7 @@ class Robot:
         self.global_map, self.robot_position = self.map_setup(self.map_dir + '/' + self.map_list[self.li_map])
         self.op_map = np.ones(self.global_map.shape) * 127
         self.map_size = np.shape(self.global_map)
+        self.finish_percent = 0.985
         self.resolution = 1
         self.sensor_range = 80
         self.old_position = np.zeros([2])
@@ -40,17 +42,17 @@ class Robot:
         self.robot_size = 6
         self.local_size = 40
         if self.plot:
-            self.xPoint = []
-            self.yPoint = []
+            self.xPoint = np.array([self.robot_position[0]])
+            self.yPoint = np.array([self.robot_position[1]])
+            self.x2frontier = np.empty([0])
+            self.y2frontier = np.empty([0])
 
     def begin(self):
         self.op_map = self.inverse_sensor(self.robot_position, self.sensor_range, self.op_map, self.global_map)
         step_map = self.robot_model(self.robot_position, self.robot_size, self.t, self.op_map)
         map_local = self.local_map(self.robot_position, step_map, self.map_size, self.sensor_range + self.local_size)
         if self.plot:
-            self.xPoint.append(self.robot_position[0])
-            self.yPoint.append(self.robot_position[1])
-            self.gui()
+            self.plot_env()
         return map_local
 
     def step(self, action_index):
@@ -92,21 +94,21 @@ class Robot:
                 new_location = True
                 terminal = True
             if self.plot and self.mode:
-                self.xPoint.append(self.robot_position[0])
-                self.yPoint.append(self.robot_position[1])
-                self.gui()
+                self.xPoint = ma.append(self.xPoint, self.robot_position[0])
+                self.yPoint = ma.append(self.yPoint, self.robot_position[1])
+                self.plot_env()
             self.robot_position = self.old_position.copy()
             self.op_map = self.old_op_map.copy()
             if self.plot and self.mode:
-                self.xPoint.pop()
-                self.yPoint.pop()
+                self.xPoint[self.xPoint.size-1] = ma.masked
+                self.yPoint[self.yPoint.size-1] = ma.masked
         else:
             if self.plot:
-                self.xPoint.append(self.robot_position[0])
-                self.yPoint.append(self.robot_position[1])
-                self.gui()
+                self.xPoint = ma.append(self.xPoint, self.robot_position[0])
+                self.yPoint = ma.append(self.yPoint, self.robot_position[1])
+                self.plot_env()
 
-        if np.size(np.where(self.global_map == 255)) - np.size(np.where(self.op_map == 255)) < 500:
+        if np.size(np.where(self.op_map == 255))/np.size(np.where(self.global_map == 255)) > self.finish_percent:
             self.li_map += 1
             if self.li_map == self.map_number:
                 self.li_map = 0
@@ -121,20 +123,25 @@ class Robot:
     def rescuer(self):
         complete = False
         all_map = False
-
+        pre_position = self.robot_position.copy()
         self.robot_position = self.frontier(self.op_map, self.map_size, self.t)
         self.op_map = self.inverse_sensor(self.robot_position, self.sensor_range, self.op_map, self.global_map)
         step_map = self.robot_model(self.robot_position, self.robot_size, self.t, self.op_map)
         map_local = self.local_map(self.robot_position, step_map, self.map_size, self.sensor_range + self.local_size)
 
         if self.plot:
-            self.xPoint.append(ma.masked)
-            self.yPoint.append(ma.masked)
-            self.xPoint.append(self.robot_position[0])
-            self.yPoint.append(self.robot_position[1])
-            self.gui()
+            path = self.astar_path(self.op_map, pre_position.tolist(), self.robot_position.tolist())
+            self.x2frontier = ma.append(self.x2frontier, ma.masked)
+            self.y2frontier = ma.append(self.y2frontier, ma.masked)
+            self.x2frontier = ma.append(self.x2frontier, path[1, :])
+            self.y2frontier = ma.append(self.y2frontier, path[0, :])
+            self.xPoint = ma.append(self.xPoint, ma.masked)
+            self.yPoint = ma.append(self.yPoint, ma.masked)
+            self.xPoint = ma.append(self.xPoint, self.robot_position[0])
+            self.yPoint = ma.append(self.yPoint, self.robot_position[1])
+            self.plot_env()
 
-        if np.size(np.where(self.global_map == 255)) - np.size(np.where(self.op_map == 255)) < 500:
+        if np.size(np.where(self.op_map == 255))/np.size(np.where(self.global_map == 255)) > self.finish_percent:
             self.li_map += 1
             if self.li_map == self.map_number:
                 self.li_map = 0
@@ -297,11 +304,38 @@ class Robot:
         result = result[~np.isnan(result).any(axis=1)]
         return result
 
-    def gui(self):
+    def astar_path(self, weights, start, goal, allow_diagonal=True):
+        temp_start = [start[1], start[0]]
+        temp_goal = [goal[1], goal[0]]
+        temp_weight = (weights < 150) * 254 + 1
+        # For the heuristic to be valid, each move must cost at least 1.
+        if temp_weight.min(axis=None) < 1.:
+            raise ValueError("Minimum cost to move must be 1, but got %f" % (
+                temp_weight.min(axis=None)))
+        # Ensure start is within bounds.
+        if (temp_start[0] < 0 or temp_start[0] >= temp_weight.shape[0] or
+                temp_start[1] < 0 or temp_start[1] >= temp_weight.shape[1]):
+            raise ValueError("Start lies outside grid.")
+        # Ensure goal is within bounds.
+        if (temp_goal[0] < 0 or temp_goal[0] >= temp_weight.shape[0] or
+                temp_goal[1] < 0 or temp_goal[1] >= temp_weight.shape[1]):
+            raise ValueError("Goal of lies outside grid.")
+
+        height, width = temp_weight.shape
+        start_idx = np.ravel_multi_index(temp_start, (height, width))
+        goal_idx = np.ravel_multi_index(temp_goal, (height, width))
+
+        path = astar(
+            temp_weight.flatten(), height, width, start_idx, goal_idx, allow_diagonal,
+        )
+        return path
+
+    def plot_env(self):
         plt.cla()
         plt.imshow(self.op_map, cmap='gray')
         plt.axis((0, self.map_size[1], self.map_size[0], 0))
         plt.plot(self.xPoint, self.yPoint, 'b', linewidth=2)
+        plt.plot(self.x2frontier, self.y2frontier, 'r', linewidth=2)
         plt.plot(self.robot_position[0], self.robot_position[1], 'mo', markersize=8)
         plt.plot(self.xPoint[0], self.yPoint[0], 'co', markersize=8)
         plt.pause(0.05)

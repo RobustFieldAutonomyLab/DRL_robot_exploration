@@ -9,28 +9,29 @@ from tensorboardX import SummaryWriter
 import robot_simulation as robot
 
 # select mode
-TRAIN = True
-PLOT = False
+TRAIN = False
+PLOT = True
 
 # training environment parameters
 ACTIONS = 50  # number of valid actions
 GAMMA = 0.99  # decay rate of past observations
 OBSERVE = 1e4  # timesteps to observe before training
 EXPLORE = 2e6  # frames over which to anneal epsilon
-REPLAY_MEMORY = 1000  # number of previous transitions to remember
+REPLAY_MEMORY = 1e3  # number of previous transitions to remember
 BATCH = 8  # size of minibatch
 h_size = 512  # size of hidden cells of LSTM
 trace_length = 8  # memory length
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
-TARGET_UPDATE = 5e4
+TARGET_UPDATE = 2e4
 
 network_dir = "../saved_networks/" + "rnn_" + str(ACTIONS)
-log_dir = "../log/" + "rnn_" + str(ACTIONS)
 if not os.path.exists(network_dir):
     os.makedirs(network_dir)
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
+if TRAIN:
+    log_dir = "../log/" + "rnn_" + str(ACTIONS)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
 
 class experience_buffer():
@@ -188,7 +189,7 @@ def start():
         total_reward = np.append(total_reward, r_t)
 
         # save progress
-        if step_t % 2e4 == 0 or step_t % 2e5 == 0 or step_t % 2e6 == 0:
+        if step_t == 2e4 or step_t == 2e5 or step_t == 2e6:
             saver.save(sess, network_dir + '/rnn', global_step=step_t)
 
         print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,

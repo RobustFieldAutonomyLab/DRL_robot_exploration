@@ -17,3 +17,4 @@ endif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 find_package(pybind11 REQUIRED)
 
 pybind11_add_module(inverse_sensor_model src/inverse_sensor_model.cpp)
+pybind11_add_module(astar src/astar.cpp)
