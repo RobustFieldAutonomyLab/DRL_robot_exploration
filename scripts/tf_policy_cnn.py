@@ -22,7 +22,7 @@ REPLAY_MEMORY = 10000  # number of previous transitions to remember
 BATCH = 64  # size of minibatch
 FINAL_RATE = 0  # final value of dropout rate
 INITIAL_RATE = 0.9  # initial value of dropout rate
-TARGET_UPDATE = 5e4
+TARGET_UPDATE = 25000  # update frequency of the target network
 
 network_dir = "../saved_networks/" + "cnn_" + str(ACTIONS)
 if not os.path.exists(network_dir):
@@ -148,8 +148,7 @@ def start():
         if step_t == 2e4 or step_t == 2e5 or step_t == 2e6:
             saver.save(sess, network_dir + '/cnn', global_step=step_t)
 
-        print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t,
-              "/ Q_MAX %e" % np.max(readout_t), "/ Terminal", finish, "\n")
+        print("TIMESTEP", step_t, "/ DROPOUT", drop_rate, "/ ACTION", action_index, "/ REWARD", r_t, "/ Terminal", finish, "\n")
 
         # reset the environment
         if finish:
@@ -161,7 +160,10 @@ def start():
                     x_t = robot_explo.begin()
             x_t = resize(x_t, (84, 84))
             s_t = np.reshape(x_t, (1, 84, 84, 1))
+            a_t_coll = []
             continue
+
+        s_t = s_t1
 
     while not TRAIN and not finish_all_map:
         # choose an action by policy

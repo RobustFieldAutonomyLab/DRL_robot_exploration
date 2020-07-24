@@ -1,0 +1,4 @@
+model_checkpoint_path: "rnn-2000000"
+all_model_checkpoint_paths: "rnn-20000"
+all_model_checkpoint_paths: "rnn-200000"
+all_model_checkpoint_paths: "rnn-2000000"

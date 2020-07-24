@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 
-project(exploration)
+project(DRL_robot_exploration)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 include_directories(/usr/include/eigen3)

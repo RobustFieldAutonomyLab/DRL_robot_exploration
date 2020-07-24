@@ -1,5 +1,5 @@
 # Robot Exploration with Deep Reinforcement Learning
-This repository contains code for robot exploration training with Deep Reinforcement Learning (DRL). The agent utilize the local structure of the environment to predict robot’s optimal sensing action. A demonstration video can be found here -> www.youtube.com/watch?v=2gNF6efv12s
+This repository contains code for robot exploration with Deep Reinforcement Learning (DRL). The agent utilizes the local structure of the environment to predict robot’s optimal sensing action. A demonstration video can be found [here](https://www.youtube.com/watch?v=2gNF6efv12s).
 
 <p align='center'>
     <img src="/doc/exploration.png" alt="drawing" width="1000"/>
@@ -19,12 +19,11 @@ This repository contains code for robot exploration training with Deep Reinforce
   ```
   pip3 install tensorboardX
   ```
-- [TensorFlow](https://www.tensorflow.org/install) (code is writen under TF1.x but it is modified to be compatible with TF2)
+- [TensorFlow](https://www.tensorflow.org/install) (this code is writen under TF1.x but it is modified to be compatible with TF2)
 - [pybind11](https://github.com/pybind/pybind11) (pybind11 — Seamless operability between C++11 and Python)
   ```
-  wget -O ~/Downloads/pybind11.zip https://github.com/pybind/pybind11/archive/master.zip
-  cd ~/Downloads/ && unzip pybind11.zip -d ~/Downloads/
-  cd ~/Downloads/pybind11-master/
+  git clone https://github.com/pybind/pybind11.git
+  cd pybind11
   mkdir build && cd build
   cmake ..
   sudo make install
@@ -41,12 +40,12 @@ make
 ```
 
 ## How to Run?
-- For CNN policy
+- For CNN policy:
     ```
     cd DRL_robot_exploration/scripts
     python3 tf_policy_cnn.py
     ```
-- For RNN policy
+- For RNN policy:
     ```
     cd DRL_robot_exploration/scripts
     python3 tf_policy_rnn.py
@@ -54,10 +53,10 @@ make
 - To select running mode, at the beginning of the tf_policy code:
     ```
     # select mode
-    TRAIN = True
-    PLOT = False
+    TRAIN = False
+    PLOT = True
     ```
-  Set ``TRAIN=False`` to run saved policy. You can train your own policy by setting ``TRAIN=True``. Set `` PLOT=True `` to turn on visualization plots.
+  Set ``TRAIN=False`` to run saved policy. You can train your own policy by setting ``TRAIN=True``. Set `` PLOT=True `` to show visualization plots.
  
 - To show average reward during the training:
     ```

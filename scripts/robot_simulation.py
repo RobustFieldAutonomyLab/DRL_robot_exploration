@@ -81,7 +81,7 @@ class Robot:
         map_local = self.local_map(self.robot_position, step_map, self.map_size, self.sensor_range + self.local_size)
         reward = self.get_reward(self.old_op_map, self.op_map, collision_index)
 
-        if reward <= 0.015 and not collision_index:
+        if reward <= 0.02 and not collision_index:
             reward = -0.8
             new_location = True
             terminal = True
