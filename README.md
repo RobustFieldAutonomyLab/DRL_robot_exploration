@@ -40,25 +40,25 @@ make
 ```
 
 ## How to Run?
-- For CNN policy:
+- For the CNN policy:
     ```
     cd DRL_robot_exploration/scripts
     python3 tf_policy_cnn.py
     ```
-- For RNN policy:
+- For the RNN policy:
     ```
     cd DRL_robot_exploration/scripts
     python3 tf_policy_rnn.py
     ```
-- To select running mode, at the beginning of the tf_policy code:
+- To select the running mode, at the beginning of the tf_policy code:
     ```
     # select mode
     TRAIN = False
     PLOT = True
     ```
-  Set ``TRAIN=False`` to run saved policy. You can train your own policy by setting ``TRAIN=True``. Set `` PLOT=True `` to show visualization plots.
+  Set ``TRAIN=False`` to run the saved policy. You can train your own policy by setting ``TRAIN=True``. Set `` PLOT=True `` to show visualization plots.
  
-- To show average reward during the training:
+- To show the average reward during the training:
     ```
     cd DRL_robot_exploration
     tensorboard --logdir=log
