@@ -1,4 +1,4 @@
-# Robot Exploration with Deep Reinforcement Learning
+# Self-Learning Exploration and Mapping for Mobile Robots via Deep Reinforcement Learning
 This repository contains code for robot exploration with Deep Reinforcement Learning (DRL). The agent utilizes the local structure of the environment to predict robot’s optimal sensing action. A demonstration video can be found [here](https://www.youtube.com/watch?v=2gNF6efv12s).
 
 <p align='center'>
